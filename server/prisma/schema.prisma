@@ -1,14 +1,122 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider   = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ContentStatus {
+  PENDING
+  PROCESSED
+  ERROR
+}
+
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(USER)
+  isBlocked Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quizAttempts      QuizAttempt[]
+  leaderboardEntries LeaderboardEntry[]
+}
+
+model Content {
+  id             String        @id @default(uuid())
+  title          String
+  originalFile   String
+  typedNotesPath String?
+  typedText      String?
+  audioPath      String?
+  memoryMapPath  String?
+  status         ContentStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  quizzes Quiz[]
+}
+
+model Quiz {
+  id               String     @id @default(uuid())
+  title            String
+  contentId        String
+  content          Content    @relation(fields: [contentId], references: [id])
+  duration         Int        // In minutes
+  startDateTime    DateTime?
+  endDateTime      DateTime?
+  marksCorrect     Int        @default(1)
+  marksWrong       Int        @default(0)
+  marksUnanswered  Int        @default(0)
+  shuffleQuestions Boolean    @default(true)
+  shuffleOptions   Boolean    @default(true)
+  releaseAnswers   Boolean    @default(false)
+  status           QuizStatus @default(DRAFT)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  questions          Question[]
+  quizAttempts       QuizAttempt[]
+  leaderboardEntries LeaderboardEntry[]
+}
+
+model Question {
+  id             String   @id @default(uuid())
+  quizId         String
+  quiz           Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionNumber Int
+  questionText   String
+  options        Json     // Stores array of options
+  correctAnswer  String   // Which option is correct (e.g., the option text or an index)
+  shuffleOptions Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model QuizAttempt {
+  id         String            @id @default(uuid())
+  quizId     String
+  quiz       Quiz              @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime  DateTime          @default(now())
+  endTime    DateTime?
+  totalMarks Int?
+  responses  Json?             // Stores user responses map
+  status     QuizAttemptStatus @default(IN_PROGRESS)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+}
+
+model LeaderboardEntry {
+  id        String   @id @default(uuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  marks     Int
+  timeTaken Int      // In seconds
+  rank      Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
